@@ -1,6 +1,9 @@
-# Host del gioco. All'avvio genera un codice stanza, mostra QR + URL,
-# e per ogni telefono che si collega crea una WebRTCPeerConnection dedicata
-# con un DataChannel "input". Ogni telefono connesso controlla un omino.
+# Host del gioco. Non dipende da nessun server esterno: il gioco stesso serve
+# la pagina del controller e il canale di signaling (vedi local_server.gd),
+# e usa UPNP per farsi raggiungere da internet senza bisogno di una LAN
+# condivisa con il telefono. Mostra QR + URL per collegarsi, e per ogni
+# telefono che si connette crea una WebRTCPeerConnection dedicata con un
+# DataChannel "input". Ogni telefono connesso controlla un omino.
 #
 # Protocollo sul DataChannel (tutto JSON, tutto taggato con "type"):
 #   {"type":"move","x":-1..1,"y":-1..1}  - vettore di movimento dal joystick
@@ -10,27 +13,26 @@
 # usa per misurare la latenza verso ogni client (anche quelli del load test),
 # il controller lo usa per misurare la latenza verso l'host quando preme un
 # tasto di test.
+#
+# Protocollo di signaling (sul canale WebSocket 1:1, vedi local_server.gd):
+# essendo una connessione dedicata per telefono non serve più instradare
+# niente con "from"/"to": {"type":"offer"|"answer"|"candidate", ...}.
 extends Node2D
 
-const TOPIC_PREFIX := "gdwebrtc-ctrl"
-const ROOM_CODE_CHARS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-const ROOM_CODE_LENGTH := 6
-# URL base della pagina controller su GitHub Pages (aggiornato dallo script di deploy).
-const PAGES_BASE_URL := "https://chirichexe.github.io/webrtc-test/"
 const STUN_CONFIG := {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 const PLAYER_SPEED := 300.0
-const MY_ID := "host"
 
 const PING_INTERVAL := 1.0  # secondi tra un ping "da host" e il successivo, per peer.
 const PING_STALE_MS := 2000  # oltre questa età un ping senza risposta è considerato perso.
 const RTT_SAMPLE_CAP := 50  # campioni di round-trip time tenuti per peer (ring buffer).
 const STATS_INTERVAL := 0.25  # ogni quanto ricalcolare msg/s e ridisegnare il pannello.
 
-# Tiene insieme peer connection, data channel, omino controllato e statistiche
-# di latenza/throughput per ogni telefono connesso.
+# Tiene insieme peer connection, data channel, canale di signaling, omino
+# controllato e statistiche di latenza/throughput per ogni telefono connesso.
 class PeerInfo:
 	var pc: WebRTCPeerConnection
 	var dc: WebRTCDataChannel
+	var conn: LocalServer.PeerConn
 	var player: Player
 
 	var next_ping_id: int = 0
@@ -43,45 +45,38 @@ class PeerInfo:
 	var msgs_per_sec: int = 0
 
 @onready var qr_rect: TextureRect = $UI/QRTextureRect
-@onready var room_label: Label = $UI/RoomLabel
+@onready var network_label: Label = $UI/NetworkLabel
 @onready var url_label: Label = $UI/URLLabel
 @onready var stats_label: Label = $UI/StatsScroll/StatsLabel
 
-var signaling: Signaling
-var room_code: String
-var topic: String
+var local_server: LocalServer
 var peers: Dictionary = {}  # phone_id -> PeerInfo
+var _next_peer_num: int = 0
 
 var _ping_accum: float = 0.0
 var _stats_accum: float = 0.0
 
 
 func _ready() -> void:
-	randomize()
-	room_code = _generate_room_code()
-	topic = "%s-%s" % [TOPIC_PREFIX, room_code]
+	local_server = LocalServer.new()
+	add_child(local_server)
+	local_server.client_connected.connect(_on_client_connected)
+	local_server.start()
 
-	signaling = Signaling.new()
-	add_child(signaling)
-	signaling.on_message.connect(_on_signaling_message)
-	signaling.start(topic)
-
-	var full_url := "%s?room=%s" % [PAGES_BASE_URL, room_code]
-	room_label.text = "Codice stanza: %s" % room_code
+	var full_url := "http://%s:%d/?wsport=%d" % [
+		local_server.external_ip, local_server.http_port, local_server.ws_port
+	]
+	if local_server.upnp_ok:
+		network_label.text = "Rete: IP pubblico via UPnP (%s)" % local_server.external_ip
+	else:
+		network_label.text = "Rete: UPnP non disponibile, solo LAN (%s) - telefono sulla stessa rete" % local_server.external_ip
 	url_label.text = full_url
 	stats_label.text = "In attesa di controller..."
 	_show_qr(full_url)
 
 	# Utile da terminale (debug, uso headless, load test): es.
-	#   node load_test/load_test.js --room <CODICE>
-	print("Codice stanza: ", room_code, "  |  URL: ", full_url)
-
-
-func _generate_room_code() -> String:
-	var s := ""
-	for i in ROOM_CODE_LENGTH:
-		s += ROOM_CODE_CHARS[randi() % ROOM_CODE_CHARS.length()]
-	return s
+	#   node load_test/load_test.js --ip <IP> --wsport <PORTA>
+	print(network_label.text, "  |  URL: ", full_url)
 
 
 func _show_qr(text: String) -> void:
@@ -91,34 +86,9 @@ func _show_qr(text: String) -> void:
 	qr.queue_free()
 
 
-func _on_signaling_message(msg: Dictionary) -> void:
-	if msg.get("to", "") != MY_ID:
-		return  # messaggio non indirizzato a noi: ignora.
-	var phone_id: String = msg.get("from", "")
-	if phone_id.is_empty():
-		return
-	match msg.get("type", ""):
-		"hello":
-			_create_peer(phone_id)
-		"answer":
-			if peers.has(phone_id):
-				peers[phone_id].pc.set_remote_description("answer", msg.get("sdp", ""))
-		"candidate":
-			if peers.has(phone_id):
-				# Alcuni client (es. node-datachannel) possono mandare "index": null:
-				# int(null) genera un errore di script in GDScript, quindi normalizza
-				# prima di convertire.
-				var idx = msg.get("index", 0)
-				if idx == null:
-					idx = 0
-				peers[phone_id].pc.add_ice_candidate(
-					msg.get("media", ""), int(idx), msg.get("candidate", "")
-				)
-
-
-func _create_peer(phone_id: String) -> void:
-	if peers.has(phone_id):
-		return
+func _on_client_connected(conn: LocalServer.PeerConn) -> void:
+	var phone_id := "client-%d" % _next_peer_num
+	_next_peer_num += 1
 
 	var pc := WebRTCPeerConnection.new()
 	pc.initialize(STUN_CONFIG)
@@ -126,22 +96,33 @@ func _create_peer(phone_id: String) -> void:
 		"input", {"negotiated": true, "id": 1, "ordered": false, "maxRetransmits": 0}
 	)
 
-	pc.session_description_created.connect(func(type: String, sdp: String):
-		pc.set_local_description(type, sdp)
-		signaling.send({"from": MY_ID, "to": phone_id, "type": type, "sdp": sdp})
-	)
-	pc.ice_candidate_created.connect(func(media: String, index: int, cand_name: String):
-		signaling.send({
-			"from": MY_ID, "to": phone_id, "type": "candidate",
-			"media": media, "index": index, "candidate": cand_name
-		})
-	)
-
 	var info := PeerInfo.new()
 	info.pc = pc
 	info.dc = dc
+	info.conn = conn
 	info.player = _spawn_player(peers.size())
 	peers[phone_id] = info
+
+	pc.session_description_created.connect(func(type: String, sdp: String):
+		pc.set_local_description(type, sdp)
+		conn.send({"type": type, "sdp": sdp})
+	)
+	pc.ice_candidate_created.connect(func(media: String, index: int, cand_name: String):
+		conn.send({"type": "candidate", "media": media, "index": index, "candidate": cand_name})
+	)
+	conn.on_message.connect(func(msg: Dictionary):
+		match msg.get("type", ""):
+			"answer":
+				pc.set_remote_description("answer", msg.get("sdp", ""))
+			"candidate":
+				# Alcuni client (es. node-datachannel) possono mandare "index": null:
+				# int(null) genera un errore di script in GDScript, quindi normalizza
+				# prima di convertire.
+				var idx = msg.get("index", 0)
+				if idx == null:
+					idx = 0
+				pc.add_ice_candidate(msg.get("media", ""), int(idx), msg.get("candidate", ""))
+	)
 
 	pc.create_offer()
 

@@ -16,13 +16,13 @@ texture_filter = 1
 expand_mode = 1
 stretch_mode = 5
 
-[node name="RoomLabel" type="Label" parent="UI"]
+[node name="NetworkLabel" type="Label" parent="UI"]
 offset_left = 20.0
 offset_top = 330.0
-offset_right = 500.0
+offset_right = 700.0
 offset_bottom = 360.0
-theme_override_font_sizes/font_size = 24
-text = "Codice stanza: ------"
+theme_override_font_sizes/font_size = 20
+text = "Rete: ..."
 
 [node name="URLLabel" type="Label" parent="UI"]
 offset_left = 20.0

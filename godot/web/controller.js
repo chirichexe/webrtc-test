@@ -1,16 +1,17 @@
-// Controller telefono: si collega al gioco Godot via WebRTC DataChannel,
-// usando ntfy.sh solo per lo scambio iniziale di offer/answer/candidate
-// (vedi signaling.js). Nessuna dipendenza esterna, nessun build step.
+// Controller telefono: si collega al gioco Godot via WebRTC DataChannel.
+// La pagina stessa (index.html, controller.js, signaling.js) è servita dal
+// gioco - niente GitHub Pages, niente server di terze parti. Il signaling
+// (offer/answer/candidate) passa su una connessione WebSocket diretta e
+// dedicata verso l'host (vedi signaling.js e godot/local_server.gd): niente
+// topic condiviso, niente "from"/"to" da instradare, il canale stesso è il
+// peer.
 //
 // Protocollo sul DataChannel (vedi anche godot/main.gd):
 //   {"type":"move","x":-1..1,"y":-1..1}  - vettore di movimento dal joystick
 //   {"type":"ping","id":N}               - probe di latenza
 //   {"type":"pong","id":N}               - risposta a un "ping" con lo stesso id
 
-const TOPIC_PREFIX = "gdwebrtc-ctrl";
 const STUN_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
-const MY_ID = "p-" + Math.random().toString(36).slice(2, 8);
-const HOST_ID = "host";
 const MOVE_HZ = 30;
 const RTT_SAMPLE_CAP = 50;
 
@@ -21,19 +22,18 @@ function setStatus(text) {
 }
 
 const params = new URLSearchParams(window.location.search);
-const room = params.get("room");
+const wsPort = params.get("wsport");
 
-if (!room) {
-  setStatus("Nessun codice stanza nell'URL (?room=...). Scansiona il QR code mostrato dal gioco.");
+if (!wsPort) {
+  setStatus("URL non valido: manca ?wsport=... (riapri dal QR code mostrato dal gioco).");
 } else {
-  startController(room);
+  startController(parseInt(wsPort, 10));
 }
 
-function startController(roomCode) {
-  const topic = `${TOPIC_PREFIX}-${roomCode}`;
-  setStatus("Connessione al signaling...");
+function startController(wsPort) {
+  setStatus("Connessione al gioco...");
 
-  const signaling = new Signaling(topic);
+  const signaling = new Signaling(wsPort);
   const pc = new RTCPeerConnection(STUN_CONFIG);
   const dc = pc.createDataChannel("input", {
     negotiated: true,
@@ -82,8 +82,6 @@ function startController(roomCode) {
   pc.onicecandidate = (event) => {
     if (!event.candidate) return;
     signaling.send({
-      from: MY_ID,
-      to: HOST_ID,
       type: "candidate",
       media: event.candidate.sdpMid,
       index: event.candidate.sdpMLineIndex,
@@ -92,12 +90,11 @@ function startController(roomCode) {
   };
 
   signaling.on_message = async (msg) => {
-    if (msg.to !== MY_ID) return; // messaggio non indirizzato a noi: ignora.
     if (msg.type === "offer") {
       await pc.setRemoteDescription({ type: "offer", sdp: msg.sdp });
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      signaling.send({ from: MY_ID, to: HOST_ID, type: "answer", sdp: answer.sdp });
+      signaling.send({ type: "answer", sdp: answer.sdp });
     } else if (msg.type === "candidate") {
       try {
         await pc.addIceCandidate({
@@ -111,12 +108,10 @@ function startController(roomCode) {
     }
   };
 
-  // Aspetta che la subscription sia pronta prima di annunciarsi,
-  // altrimenti rischiamo di perdere l'offer che l'host invia in risposta.
-  signaling.on_open = () => {
-    setStatus("In attesa del gioco...");
-    signaling.send({ from: MY_ID, to: HOST_ID, type: "hello" });
-  };
+  // Appena la connessione WebSocket è aperta, l'host sa già che siamo qui
+  // (è lui ad averla accettata) e manda l'offer da solo: non serve nessun
+  // messaggio di "hello" esplicito.
+  signaling.on_open = () => setStatus("In attesa dell'offerta dal gioco...");
   signaling.connect();
 
   setupJoystick(dc);

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Controller</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #111;
+    color: #eee;
+    font-family: sans-serif;
+    user-select: none;
+    touch-action: none;
+  }
+  #status {
+    text-align: center;
+    padding: 12px;
+    font-size: 14px;
+  }
+  #pad {
+    display: grid;
+    grid-template-columns: 80px 80px 80px;
+    grid-template-rows: 80px 80px 80px;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 40px;
+  }
+  .btn {
+    background: #333;
+    border: 2px solid #555;
+    border-radius: 12px;
+    font-size: 28px;
+    color: #eee;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn:active {
+    background: #555;
+  }
+  #btn-up    { grid-column: 2; grid-row: 1; }
+  #btn-left  { grid-column: 1; grid-row: 2; }
+  #btn-right { grid-column: 3; grid-row: 2; }
+  #btn-down  { grid-column: 2; grid-row: 3; }
+</style>
+</head>
+<body>
+  <div id="status">Caricamento...</div>
+  <div id="pad">
+    <div id="btn-up" class="btn">&#8593;</div>
+    <div id="btn-left" class="btn">&#8592;</div>
+    <div id="btn-right" class="btn">&#8594;</div>
+    <div id="btn-down" class="btn">&#8595;</div>
+  </div>
+
+  <script src="signaling.js"></script>
+  <script src="controller.js"></script>
+</body>
+</html>

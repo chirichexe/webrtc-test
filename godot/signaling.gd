@@ -9,6 +9,7 @@ extends Node
 signal on_message(msg: Dictionary)
 
 const NTFY_HOST := "ntfy.sh"
+const MAX_RETRIES := 4  # su "429 Too Many Requests" (limite di burst di ntfy.sh).
 
 var topic: String = ""
 var _ws := WebSocketPeer.new()
@@ -20,14 +21,24 @@ func start(p_topic: String) -> void:
 	if err != OK:
 		push_error("Signaling: connessione a ntfy.sh fallita (err %d)" % err)
 
-# Pubblica un messaggio JSON sul topic via HTTP POST.
-func send(msg: Dictionary) -> void:
+# Pubblica un messaggio JSON sul topic via HTTP POST. Se ntfy risponde 429
+# (limite di burst superato, tipico con molti peer che si collegano insieme,
+# es. il load test) riprova con un backoff crescente invece di perdere il
+# messaggio in silenzio.
+func send(msg: Dictionary, attempt: int = 0) -> void:
 	if topic.is_empty():
 		push_error("Signaling: send() chiamato prima di start()")
 		return
 	var req := HTTPRequest.new()
 	add_child(req)
-	req.request_completed.connect(func(_result, _code, _headers, _body): req.queue_free())
+	req.request_completed.connect(func(_result: int, code: int, _headers, _body):
+		req.queue_free()
+		if code == 429 and attempt < MAX_RETRIES:
+			await get_tree().create_timer(0.8 * (attempt + 1)).timeout
+			send(msg, attempt + 1)
+		elif code != 200:
+			push_error("Signaling: pubblicazione non riuscita (http %d)" % code)
+	)
 	var body := JSON.stringify(msg)
 	var headers := ["Content-Type: text/plain; charset=utf-8"]
 	var err := req.request("https://%s/%s" % [NTFY_HOST, topic], headers, HTTPClient.METHOD_POST, body)

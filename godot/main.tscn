@@ -31,10 +31,14 @@ offset_right = 700.0
 offset_bottom = 395.0
 text = "URL"
 
-[node name="StatusLabel" type="Label" parent="UI"]
+[node name="StatsScroll" type="ScrollContainer" parent="UI"]
 offset_left = 20.0
 offset_top = 400.0
-offset_right = 700.0
-offset_bottom = 430.0
-theme_override_font_sizes/font_size = 20
+offset_right = 900.0
+offset_bottom = 600.0
+
+[node name="StatsLabel" type="Label" parent="UI/StatsScroll"]
+offset_right = 880.0
+offset_bottom = 400.0
+theme_override_font_sizes/font_size = 16
 text = "Stato"

@@ -9,52 +9,138 @@
     margin: 0;
     padding: 0;
     height: 100%;
-    background: #111;
-    color: #eee;
-    font-family: sans-serif;
+    background: #1a1a19;
+    color: #f0efec;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     user-select: none;
     touch-action: none;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    flex-direction: column;
   }
   #status {
     text-align: center;
-    padding: 12px;
-    font-size: 14px;
+    padding: 10px;
+    font-size: 13px;
+    color: #c3c2b7;
   }
-  #pad {
+
+  /* Pannello statistiche di latenza: stat tile + sparkline, vedi dataviz skill. */
+  #stat-tile {
+    padding: 8px 16px 14px;
+    border-bottom: 1px solid #2c2c2a;
+  }
+  #stat-current {
+    font-size: 34px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #f0efec;
+  }
+  #stat-detail {
+    font-size: 12px;
+    color: #c3c2b7;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  #latency-sparkline {
+    width: 100%;
+    height: 36px;
+    margin-top: 6px;
+    display: block;
+  }
+
+  /* Area di gioco: joystick a sinistra, tasti di test latenza a destra. */
+  #controls {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+  }
+
+  #joystick-base {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: #242423;
+    border: 2px solid #383835;
+    position: relative;
+    touch-action: none;
+  }
+  #joystick-nub {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #3987e5;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    margin-left: -30px;
+    margin-top: -30px;
+    pointer-events: none;
+    transition: transform 0.03s linear;
+  }
+
+  #ping-grid {
     display: grid;
-    grid-template-columns: 80px 80px 80px;
-    grid-template-rows: 80px 80px 80px;
-    gap: 8px;
-    justify-content: center;
-    margin-top: 40px;
+    grid-template-columns: 56px 56px;
+    grid-template-rows: 56px 56px 56px 56px;
+    gap: 10px;
   }
-  .btn {
-    background: #333;
-    border: 2px solid #555;
-    border-radius: 12px;
-    font-size: 28px;
-    color: #eee;
+  .ping-btn {
+    background: #242423;
+    border: 2px solid #383835;
+    border-radius: 50%;
+    color: #c3c2b7;
+    font-size: 15px;
     display: flex;
     align-items: center;
     justify-content: center;
+    touch-action: none;
   }
-  .btn:active {
-    background: #555;
+  .ping-btn.pressed {
+    background: #3987e5;
+    color: #f0efec;
+    border-color: #3987e5;
   }
-  #btn-up    { grid-column: 2; grid-row: 1; }
-  #btn-left  { grid-column: 1; grid-row: 2; }
-  #btn-right { grid-column: 3; grid-row: 2; }
-  #btn-down  { grid-column: 2; grid-row: 3; }
+
+  #hint {
+    text-align: center;
+    font-size: 11px;
+    color: #898781;
+    padding: 8px;
+  }
 </style>
 </head>
 <body>
   <div id="status">Caricamento...</div>
-  <div id="pad">
-    <div id="btn-up" class="btn">&#8593;</div>
-    <div id="btn-left" class="btn">&#8592;</div>
-    <div id="btn-right" class="btn">&#8594;</div>
-    <div id="btn-down" class="btn">&#8595;</div>
+
+  <div id="stat-tile">
+    <div id="stat-current">-- ms</div>
+    <div id="stat-detail">in attesa di campioni...</div>
+    <canvas id="latency-sparkline" width="400" height="36"></canvas>
   </div>
+
+  <div id="controls">
+    <div id="joystick-base">
+      <div id="joystick-nub"></div>
+    </div>
+
+    <div id="ping-grid">
+      <div class="ping-btn" data-n="1">1</div>
+      <div class="ping-btn" data-n="2">2</div>
+      <div class="ping-btn" data-n="3">3</div>
+      <div class="ping-btn" data-n="4">4</div>
+      <div class="ping-btn" data-n="5">5</div>
+      <div class="ping-btn" data-n="6">6</div>
+      <div class="ping-btn" data-n="7">7</div>
+      <div class="ping-btn" data-n="8">8</div>
+    </div>
+  </div>
+
+  <div id="hint">Trascina lo stick per muoverti · i tasti numerati misurano la latenza</div>
 
   <script src="signaling.js"></script>
   <script src="controller.js"></script>

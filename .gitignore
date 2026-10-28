@@ -1,2 +1,5 @@
 # Godot 4 import cache.
 godot/.godot/
+
+# Dipendenze npm del load test (vedi load_test/package.json).
+load_test/node_modules/

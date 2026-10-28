@@ -5,6 +5,7 @@
 // così questo modulo resta sostituibile con un altro trasporto di signaling.
 
 const NTFY_HOST = "ntfy.sh";
+const MAX_RETRIES = 4; // su "429 Too Many Requests" (limite di burst di ntfy.sh).
 
 class Signaling {
   constructor(topic) {
@@ -41,12 +42,28 @@ class Signaling {
     };
   }
 
-  // Pubblica un messaggio JSON sul topic via HTTP POST.
-  send(msg) {
-    fetch(`https://${NTFY_HOST}/${this.topic}`, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-      body: JSON.stringify(msg),
-    }).catch((err) => console.error("Signaling: pubblicazione fallita", err));
+  // Pubblica un messaggio JSON sul topic via HTTP POST. Se ntfy risponde 429
+  // (limite di burst superato, tipico con molti peer che si collegano
+  // insieme) riprova con un backoff crescente invece di perdere il
+  // messaggio in silenzio.
+  async send(msg, attempt = 0) {
+    let res;
+    try {
+      res = await fetch(`https://${NTFY_HOST}/${this.topic}`, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+        body: JSON.stringify(msg),
+      });
+    } catch (err) {
+      console.error("Signaling: pubblicazione fallita", err.message);
+      return;
+    }
+    if (res.status === 429 && attempt < MAX_RETRIES) {
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+      return this.send(msg, attempt + 1);
+    }
+    if (!res.ok) {
+      console.error(`Signaling: pubblicazione non riuscita (http ${res.status})`);
+    }
   }
 }

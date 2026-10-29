@@ -20,15 +20,6 @@ function setStatus(text) {
   statusEl.textContent = text;
 }
 
-const params = new URLSearchParams(window.location.search);
-const room = params.get("room");
-
-if (!room) {
-  setStatus("Nessun codice stanza nell'URL (?room=...). Scansiona il QR code mostrato dal gioco.");
-} else {
-  startController(room);
-}
-
 function startController(roomCode) {
   const topic = `${TOPIC_PREFIX}-${roomCode}`;
   setStatus("Connessione al signaling...");
@@ -318,4 +309,16 @@ function setupStatsLoop(stats) {
       `perdita ${s.lossPct.toFixed(1)}%`;
     draw();
   }, 150);
+}
+
+// --- Bootstrap: va eseguito per ultimo, dopo che tutto il resto (classi e
+// funzioni usate da startController) è stato definito. ---
+
+const params = new URLSearchParams(window.location.search);
+const room = params.get("room");
+
+if (!room) {
+  setStatus("Nessun codice stanza nell'URL (?room=...). Scansiona il QR code mostrato dal gioco.");
+} else {
+  startController(room);
 }

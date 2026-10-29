@@ -21,15 +21,6 @@ function setStatus(text) {
   statusEl.textContent = text;
 }
 
-const params = new URLSearchParams(window.location.search);
-const wsPort = params.get("wsport");
-
-if (!wsPort) {
-  setStatus("URL non valido: manca ?wsport=... (riapri dal QR code mostrato dal gioco).");
-} else {
-  startController(parseInt(wsPort, 10));
-}
-
 function startController(wsPort) {
   setStatus("Connessione al gioco...");
 
@@ -311,4 +302,16 @@ function setupStatsLoop(stats) {
       `perdita ${s.lossPct.toFixed(1)}%`;
     draw();
   }, 150);
+}
+
+// --- Bootstrap: va eseguito per ultimo, dopo che tutto il resto (classi e
+// funzioni usate da startController) è stato definito. ---
+
+const params = new URLSearchParams(window.location.search);
+const wsPort = params.get("wsport");
+
+if (!wsPort) {
+  setStatus("URL non valido: manca ?wsport=... (riapri dal QR code mostrato dal gioco).");
+} else {
+  startController(parseInt(wsPort, 10));
 }

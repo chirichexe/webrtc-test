@@ -1,0 +1,9 @@
+{
+  "name": "webrtc-test-load-test",
+  "private": true,
+  "description": "Simula N controller che inondano l'host Godot di input (con-server/ o senza-server/, scelto con --mode), per studiare latenza/throughput sotto carico.",
+  "main": "load_test.js",
+  "dependencies": {
+    "node-datachannel": "^0.33.6"
+  }
+}

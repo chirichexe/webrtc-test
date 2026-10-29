@@ -18,7 +18,7 @@ const ROOM_CODE_LENGTH := 6
 # URL base della pagina controller: dove hai pubblicato il contenuto di web/
 # (GitHub Pages, Netlify, qualsiasi hosting statico con HTTPS). Aggiornalo
 # dopo il deploy - vedi il README di questa cartella.
-const PAGES_BASE_URL := "https://TUO-UTENTE.github.io/TUO-REPO/"
+const PAGES_BASE_URL := "https://chirichexe.github.io/webrtc-test/"
 const STUN_CONFIG := {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
 const PLAYER_SPEED := 300.0
 const MY_ID := "host"

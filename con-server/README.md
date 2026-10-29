@@ -4,13 +4,17 @@ Controller da telefono via WebRTC. Signaling tramite ntfy.sh (pub/sub pubblico g
 
 ## Avvio
 
-Pubblica `web/` su un hosting statico HTTPS (es. GitHub Pages, cartella `docs/` nella root del repo):
+Il contenuto di `web/` è già pubblicato via GitHub Pages: una copia vive in
+`/docs` nella root del repo (unico path che l'API di Pages accetta oltre a
+`/`), abilitata con:
 
 ```
-gh api -X POST repos/<utente>/<repo>/pages -f "source[branch]=main" -f "source[path]=/docs"
+gh api -X POST repos/chirichexe/webrtc-test/pages -f "source[branch]=main" -f "source[path]=/docs"
 ```
 
-Aggiorna `PAGES_BASE_URL` in `godot/main.gd` con l'URL risultante.
+È già raggiungibile su `https://chirichexe.github.io/webrtc-test/`, già impostato
+come `PAGES_BASE_URL` in `godot/main.gd`. Se modifichi `web/`, ricordati di
+copiare i file anche in `/docs` e pushare.
 
 Avvia il gioco:
 

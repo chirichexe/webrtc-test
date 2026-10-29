@@ -117,6 +117,8 @@ function startController(roomCode) {
     setStatus("In attesa del gioco...");
     signaling.send({ from: MY_ID, to: HOST_ID, type: "hello" });
   };
+  signaling.on_error = () => setStatus("Errore di connessione a ntfy.sh (vedi console).");
+  signaling.on_close = () => setStatus("Connessione a ntfy.sh interrotta.");
   signaling.connect();
 
   setupJoystick(dc);

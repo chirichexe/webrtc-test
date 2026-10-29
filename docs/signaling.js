@@ -24,6 +24,14 @@ class Signaling {
     this._ws.onopen = () => {
       if (this.on_open) this.on_open();
     };
+    this._ws.onerror = (event) => {
+      console.error("Signaling: errore WebSocket verso ntfy.sh", event);
+      if (this.on_error) this.on_error(event);
+    };
+    this._ws.onclose = (event) => {
+      console.error(`Signaling: WebSocket chiuso (code ${event.code})`);
+      if (this.on_close) this.on_close(event);
+    };
     this._ws.onmessage = (event) => {
       let envelope;
       try {
